@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown, Save, GitCompare } from "lucide-react"
+import { computeDiff } from './lib/changeset/diff'
+import { Change, Span } from './lib/changeset/changeset'
 import './diff.css'
 
 interface EditorState {
@@ -51,41 +53,79 @@ const DiffView = ({ currentContent, previousContent, onAccept, onReject, onClose
 
   useEffect(() => {
     if (previousEditor && currentEditor) {
-      // Add custom styles to highlight changes
       const previousDOM = previousEditor.view.dom as HTMLElement;
       const currentDOM = currentEditor.view.dom as HTMLElement;
 
-      // Function to compare and highlight changes
-      const highlightChanges = () => {
-        const previousHTML = previousEditor.getHTML();
-        const currentHTML = currentEditor.getHTML();
+      // Add wrapper classes for styling
+      previousDOM.classList.add('diff-view');
+      currentDOM.classList.add('diff-view');
 
-        if (previousHTML === currentHTML) return;
+      // Get ProseMirror nodes for diffing
+      const previousNode = previousEditor.state.doc;
+      const currentNode = currentEditor.state.doc;
 
-        // Add a wrapper class to both editors for styling
-        previousDOM.classList.add('diff-view');
-        currentDOM.classList.add('diff-view');
+      // Create spans for the entire content
+      const previousSpan = new Span(previousNode.content.size, null);
+      const currentSpan = new Span(currentNode.content.size, null);
 
-        // Simple diff highlighting based on element comparison
-        const previousElements = previousDOM.querySelectorAll('p, h1, h2, h3, h4, h5, h6, ul, ol, li');
-        const currentElements = currentDOM.querySelectorAll('p, h1, h2, h3, h4, h5, h6, ul, ol, li');
+      // Create a Change object for the entire document
+      const range = new Change(
+        0, previousNode.content.size,
+        0, currentNode.content.size,
+        [previousSpan],
+        [currentSpan]
+      );
+      
+      // Compute the diff using Myers algorithm
+      const changes = computeDiff(previousNode.content, currentNode.content, range);
 
-        previousElements.forEach((el, i) => {
-          const currentEl = currentElements[i];
-          if (!currentEl || el.textContent !== currentEl.textContent) {
-            el.classList.add('diff-deleted');
+      // Function to get all text nodes within a range
+      const getTextNodesInRange = (editor: any, from: number, to: number) => {
+        const nodes: HTMLElement[] = [];
+        const gather = (node: HTMLElement) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const parent = node.parentElement;
+            if (parent && !nodes.includes(parent)) {
+              nodes.push(parent);
+            }
           }
-        });
-
-        currentElements.forEach((el, i) => {
-          const previousEl = previousElements[i];
-          if (!previousEl || el.textContent !== previousEl.textContent) {
-            el.classList.add('diff-added');
-          }
-        });
+          node.childNodes.forEach(child => gather(child as HTMLElement));
+        };
+        
+        // Get the actual DOM range
+        const view = editor.view;
+        const start = view.domAtPos(from);
+        const end = view.domAtPos(to);
+        let node = start.node;
+        
+        // Gather all text nodes between start and end
+        while (node && node !== end.node) {
+          gather(node);
+          node = node.nextSibling as HTMLElement;
+        }
+        if (node) gather(node);
+        
+        return nodes;
       };
 
-      highlightChanges();
+      // Apply highlighting based on the computed diff
+      changes.forEach(change => {
+        // Handle deletions in the previous version
+        if (change.lenA > 0) {
+          const deletedNodes = getTextNodesInRange(previousEditor, change.fromA, change.toA);
+          deletedNodes.forEach(node => {
+            node.classList.add('diff-deleted');
+          });
+        }
+
+        // Handle insertions in the current version
+        if (change.lenB > 0) {
+          const insertedNodes = getTextNodesInRange(currentEditor, change.fromB, change.toB);
+          insertedNodes.forEach(node => {
+            node.classList.add('diff-added');
+          });
+        }
+      });
     }
   }, [previousEditor, currentEditor]);
 
