@@ -79,40 +79,49 @@ const DiffView = ({ currentContent, previousContent, onAccept, onReject, onClose
       // Compute the diff using Myers algorithm
       const changes = computeDiff(previousNode.content, currentNode.content, range);
 
-      // Function to get all text nodes within a range
-      const getTextNodesInRange = (editor: any, from: number, to: number) => {
+      // Function to get the DOM nodes for a given position range
+      const getNodesInRange = (editor: any, from: number, to: number) => {
         const nodes: HTMLElement[] = [];
-        const gather = (node: HTMLElement) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const parent = node.parentElement;
-            if (parent && !nodes.includes(parent)) {
-              nodes.push(parent);
+        const $from = editor.state.doc.resolve(from);
+        const $to = editor.state.doc.resolve(to);
+        
+        const pos = $from.pos;
+        const end = $to.pos;
+        
+        // Walk through each node in the range
+        editor.state.doc.nodesBetween(pos, end, (node: any, pos: number) => {
+          if (node.isText || node.isBlock) {
+            const dom = editor.view.nodeDOM(pos);
+            if (dom && dom instanceof HTMLElement) {
+              // Only add block-level elements or direct text containers
+              if (dom.nodeType === Node.ELEMENT_NODE && 
+                  (/^(p|h[1-6]|li|ul|ol)$/i.test(dom.tagName) || 
+                   dom.classList.contains('ProseMirror-text'))) {
+                if (!nodes.includes(dom)) {
+                  nodes.push(dom);
+                }
+              }
             }
           }
-          node.childNodes.forEach(child => gather(child as HTMLElement));
-        };
-        
-        // Get the actual DOM range
-        const view = editor.view;
-        const start = view.domAtPos(from);
-        const end = view.domAtPos(to);
-        let node = start.node;
-        
-        // Gather all text nodes between start and end
-        while (node && node !== end.node) {
-          gather(node);
-          node = node.nextSibling as HTMLElement;
-        }
-        if (node) gather(node);
+          return true; // Continue traversal
+        });
         
         return nodes;
       };
+
+      // Clear any existing diff markers
+      previousDOM.querySelectorAll('.diff-deleted').forEach(node => {
+        node.classList.remove('diff-deleted');
+      });
+      currentDOM.querySelectorAll('.diff-added').forEach(node => {
+        node.classList.remove('diff-added');
+      });
 
       // Apply highlighting based on the computed diff
       changes.forEach(change => {
         // Handle deletions in the previous version
         if (change.lenA > 0) {
-          const deletedNodes = getTextNodesInRange(previousEditor, change.fromA, change.toA);
+          const deletedNodes = getNodesInRange(previousEditor, change.fromA, change.toA);
           deletedNodes.forEach(node => {
             node.classList.add('diff-deleted');
           });
@@ -120,7 +129,7 @@ const DiffView = ({ currentContent, previousContent, onAccept, onReject, onClose
 
         // Handle insertions in the current version
         if (change.lenB > 0) {
-          const insertedNodes = getTextNodesInRange(currentEditor, change.fromB, change.toB);
+          const insertedNodes = getNodesInRange(currentEditor, change.fromB, change.toB);
           insertedNodes.forEach(node => {
             node.classList.add('diff-added');
           });
@@ -181,6 +190,30 @@ const Tiptap = () => {
       },
     },
   })
+
+  const getFlattenedHtmlWithIds = () => {
+    if (!editor) return;
+    
+    const html = editor.getHTML();
+    // Create a temporary div to parse the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Get all paragraph elements
+    const paragraphs = tempDiv.getElementsByTagName('p');
+    
+    // Add IDs to each paragraph
+    Array.from(paragraphs).forEach((p, index) => {
+      p.id = String(index + 1);
+    });
+    
+    // Get the processed HTML
+    const processedHtml = tempDiv.innerHTML;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(processedHtml);
+    alert('Flattened HTML with IDs has been copied to clipboard!');
+  };
 
   useEffect(() => {
     // Load saved states from localStorage on component mount
@@ -245,6 +278,10 @@ const Tiptap = () => {
         <Button onClick={saveCurrentState} className="flex items-center gap-2">
           <Save className="h-4 w-4" />
           Save Current State
+        </Button>
+        
+        <Button onClick={getFlattenedHtmlWithIds} variant="outline" className="flex items-center gap-2">
+          Get HTML with IDs
         </Button>
         
         <DropdownMenu>
