@@ -1,0 +1,66 @@
+/* Diff view styles */
+.diff-view {
+  position: relative;
+}
+
+.prose-diff-old .ProseMirror p,
+.prose-diff-old .ProseMirror h1,
+.prose-diff-old .ProseMirror h2,
+.prose-diff-old .ProseMirror h3,
+.prose-diff-old .ProseMirror h4,
+.prose-diff-old .ProseMirror h5,
+.prose-diff-old .ProseMirror h6,
+.prose-diff-old .ProseMirror ul,
+.prose-diff-old .ProseMirror ol,
+.prose-diff-old .ProseMirror li {
+  transition: background-color 0.2s ease;
+}
+
+.prose-diff-new .ProseMirror p,
+.prose-diff-new .ProseMirror h1,
+.prose-diff-new .ProseMirror h2,
+.prose-diff-new .ProseMirror h3,
+.prose-diff-new .ProseMirror h4,
+.prose-diff-new .ProseMirror h5,
+.prose-diff-new .ProseMirror h6,
+.prose-diff-new .ProseMirror ul,
+.prose-diff-new .ProseMirror ol,
+.prose-diff-new .ProseMirror li {
+  transition: background-color 0.2s ease;
+}
+
+.prose-diff-old .diff-deleted {
+  @apply bg-red-100 text-red-800 px-2 py-1 rounded;
+  position: relative;
+}
+
+.prose-diff-old .diff-deleted::before {
+  content: "-";
+  position: absolute;
+  left: -1rem;
+  color: theme("colors.red.500");
+}
+
+.prose-diff-new .diff-added {
+  @apply bg-green-100 text-green-800 px-2 py-1 rounded;
+  position: relative;
+}
+
+.prose-diff-new .diff-added::before {
+  content: "+";
+  position: absolute;
+  left: -1rem;
+  color: theme("colors.green.500");
+}
+
+/* Make the editors read-only appearance more subtle */
+.ProseMirror[contenteditable="false"] {
+  @apply opacity-90;
+  cursor: default;
+}
+
+/* Add some spacing between elements in the diff view */
+.prose-diff-old .ProseMirror > *,
+.prose-diff-new .ProseMirror > * {
+  @apply my-2;
+}
