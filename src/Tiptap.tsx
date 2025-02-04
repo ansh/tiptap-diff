@@ -1,6 +1,16 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useState, useEffect } from 'react'
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown, Save } from "lucide-react"
 
 interface EditorState {
   content: string;
@@ -25,9 +35,17 @@ const Tiptap = () => {
     // Load saved states from localStorage on component mount
     const savedStatesFromStorage = localStorage.getItem('editorStates');
     if (savedStatesFromStorage) {
-      setSavedStates(JSON.parse(savedStatesFromStorage));
+      const states = JSON.parse(savedStatesFromStorage);
+      setSavedStates(states);
+      
+      // Set to the latest state (last in the array)
+      if (states.length > 0 && editor) {
+        const latestIndex = states.length - 1;
+        setCurrentStateIndex(latestIndex);
+        editor.commands.setContent(states[latestIndex].content);
+      }
     }
-  }, []);
+  }, [editor]); // Add editor as dependency to ensure it's available
 
   const saveCurrentState = () => {
     if (!editor) return;
@@ -43,48 +61,55 @@ const Tiptap = () => {
     localStorage.setItem('editorStates', JSON.stringify(newStates));
   };
 
-  const loadPreviousState = () => {
-    if (!editor || currentStateIndex <= 0) return;
-    
-    const newIndex = currentStateIndex - 1;
-    setCurrentStateIndex(newIndex);
-    editor.commands.setContent(savedStates[newIndex].content);
+  const loadState = (index: number) => {
+    if (!editor || index < 0 || index >= savedStates.length) return;
+    setCurrentStateIndex(index);
+    editor.commands.setContent(savedStates[index].content);
   };
 
-  const loadNextState = () => {
-    if (!editor || currentStateIndex >= savedStates.length - 1) return;
-    
-    const newIndex = currentStateIndex + 1;
-    setCurrentStateIndex(newIndex);
-    editor.commands.setContent(savedStates[newIndex].content);
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString();
   };
 
   return (
     <div className="editor-wrapper">
-      <div className="editor-controls" style={{ marginBottom: '1rem' }}>
-        <button 
-          onClick={saveCurrentState}
-          className="px-4 py-2 bg-blue-500 text-white rounded mr-2 hover:bg-blue-600"
-        >
+      <div className="editor-controls flex items-center gap-2 mb-4">
+        <Button onClick={saveCurrentState} className="flex items-center gap-2">
+          <Save className="h-4 w-4" />
           Save Current State
-        </button>
-        <button 
-          onClick={loadPreviousState}
-          disabled={currentStateIndex <= 0}
-          className="px-4 py-2 bg-gray-500 text-white rounded mr-2 hover:bg-gray-600 disabled:opacity-50"
-        >
-          ← Previous State
-        </button>
-        <button 
-          onClick={loadNextState}
-          disabled={currentStateIndex >= savedStates.length - 1}
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50"
-        >
-          Next State →
-        </button>
-        <span className="ml-4 text-sm text-gray-600">
-          {savedStates.length > 0 ? `State ${currentStateIndex + 1} of ${savedStates.length}` : 'No saved states'}
-        </span>
+        </Button>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              History
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuLabel>Saved States</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {savedStates.length === 0 ? (
+              <DropdownMenuItem disabled>No saved states</DropdownMenuItem>
+            ) : (
+              savedStates.map((state, index) => (
+                <DropdownMenuItem
+                  key={state.timestamp}
+                  onClick={() => loadState(index)}
+                  className={currentStateIndex === index ? "bg-muted" : ""}
+                >
+                  {formatTimestamp(state.timestamp)}
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        {savedStates.length > 0 && (
+          <span className="text-sm text-muted-foreground">
+            State {currentStateIndex + 1} of {savedStates.length}
+          </span>
+        )}
       </div>
       <EditorContent editor={editor} />
     </div>
